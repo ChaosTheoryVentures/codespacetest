@@ -21,5 +21,6 @@ jobs:
           fi
           cd codespacetest
           git pull origin main
-          docker-compose down || true
+          docker-compose down --remove-orphans || true
+          docker system prune -f || true
           docker-compose up -d --build
