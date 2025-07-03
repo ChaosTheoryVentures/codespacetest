@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Interactive Neural Network Playground - Build, train, and visualize neural networks in your browser">
+    <title>Neural Network Playground</title>
+    
+    <!-- External Libraries -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="css/styles.css">
+    
+    <style>
+        /* Base Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        /* Layout */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        
+        header {
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 1rem 0;
+            margin-bottom: 2rem;
+        }
+        
+        .main-grid {
+            display: grid;
+            grid-template-columns: 300px 1fr 300px;
+            gap: 1.5rem;
+        }
+        
+        /* Panels */
+        .panel {
+            background: white;
+            border-radius: 8px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .panel h2 {
+            margin-bottom: 1rem;
+            color: #2c3e50;
+            font-size: 1.2rem;
+        }
+        
+        /* Form Elements */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #555;
+        }
+        
+        input[type="number"],
+        input[type="text"],
+        input[type="file"],
+        select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+        
+        /* Loading States */
+        .loader {
+            display: none;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 1rem auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Error Messages */
+        .error-message {
+            display: none;
+            background-color: #e74c3c;
+            color: white;
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        .success-message {
+            display: none;
+            background-color: #27ae60;
+            color: white;
+            padding: 0.75rem;
+            border-radius: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        /* Visualization Areas */
+        #network-diagram {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #fafafa;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 1.5rem;
+        }
+        
+        /* Progress Bar */
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #ecf0f1;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background-color: #3498db;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Accessibility */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border-width: 0;
+        }
+        
+        /* Layer Configuration */
+        .layer-config {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .add-layer-btn {
+            background-color: #27ae60;
+            width: 100%;
+            margin-top: 0.5rem;
+        }
+        
+        /* Prediction Interface */
+        .prediction-input {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .prediction-result {
+            background: #ecf0f1;
+            padding: 1rem;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Neural Network Playground</h1>
+        </div>
+    </header>
+
+    <main class="container">
+        <div id="error-container" class="error-message" role="alert" aria-live="assertive"></div>
+        <div id="success-container" class="success-message" role="status" aria-live="polite"></div>
+
+        <div class="main-grid">
+            <!-- Left Panel: Configuration -->
+            <aside class="panel" role="complementary" aria-label="Network Configuration">
+                <h2>Network Architecture</h2>
+                
+                <div id="layers-container">
+                    <div class="layer-config">
+                        <div class="form-group">
+                            <label for="input-neurons">Input Layer Neurons</label>
+                            <input type="number" id="input-neurons" min="1" max="100" value="2" aria-describedby="input-neurons-help">
+                            <small id="input-neurons-help" class="help-text">Number of input features</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="add-layer-btn" onclick="addLayer()" aria-label="Add new hidden layer">
+                    + Add Hidden Layer
+                </button>
+                
+                <div class="form-group" style="margin-top: 1.5rem;">
+                    <label for="output-neurons">Output Layer Neurons</label>
+                    <input type="number" id="output-neurons" min="1" max="100" value="1">
+                </div>
+                
+                <div class="form-group">
+                    <label for="activation-function">Activation Function</label>
+                    <select id="activation-function" aria-label="Select activation function">
+                        <option value="relu">ReLU</option>
+                        <option value="sigmoid">Sigmoid</option>
+                        <option value="tanh">Tanh</option>
+                        <option value="linear">Linear</option>
+                    </select>
+                </div>
+                
+                <h2 style="margin-top: 2rem;">Dataset</h2>
+                
+                <div class="form-group">
+                    <label for="dataset-select">Select Dataset</label>
+                    <select id="dataset-select" aria-label="Select training dataset">
+                        <option value="xor">XOR Problem</option>
+                        <option value="circles">Circles</option>
+                        <option value="spiral">Spiral</option>
+                        <option value="custom">Custom Upload</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="upload-container" style="display: none;">
+                    <label for="dataset-upload">Upload Custom Dataset (CSV)</label>
+                    <input type="file" id="dataset-upload" accept=".csv" aria-describedby="upload-help">
+                    <small id="upload-help" class="help-text">CSV format: features, ..., label</small>
+                </div>
+                
+                <h2 style="margin-top: 2rem;">Training Parameters</h2>
+                
+                <div class="form-group">
+                    <label for="epochs">Epochs</label>
+                    <input type="number" id="epochs" min="1" max="10000" value="100" aria-label="Number of training epochs">
+                </div>
+                
+                <div class="form-group">
+                    <label for="learning-rate">Learning Rate</label>
+                    <input type="number" id="learning-rate" min="0.0001" max="1" step="0.0001" value="0.01" aria-label="Learning rate value">
+                </div>
+                
+                <div class="form-group">
+                    <label for="batch-size">Batch Size</label>
+                    <input type="number" id="batch-size" min="1" max="1000" value="32" aria-label="Training batch size">
+                </div>
+                
+                <div class="button-group">
+                    <button id="train-btn" onclick="startTraining()" aria-label="Start training the neural network">
+                        Start Training
+                    </button>
+                    <button id="stop-btn" onclick="stopTraining()" disabled aria-label="Stop training">
+                        Stop
+                    </button>
+                </div>
+                
+                <div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    <div class="progress-fill" id="training-progress"></div>
+                </div>
+                
+                <div class="loader" id="training-loader" role="status">
+                    <span class="sr-only">Training in progress...</span>
+                </div>
+            </aside>
+
+            <!-- Center Panel: Visualization -->
+            <section class="panel" role="main" aria-label="Network Visualization">
+                <h2>Network Visualization</h2>
+                <div id="network-diagram" aria-label="Neural network architecture diagram"></div>
+                
+                <h2 style="margin-top: 2rem;">Training Progress</h2>
+                <div class="chart-container">
+                    <canvas id="loss-chart" aria-label="Training loss over time"></canvas>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="accuracy-chart" aria-label="Training accuracy over time"></canvas>
+                </div>
+            </section>
+
+            <!-- Right Panel: Testing & Model Management -->
+            <aside class="panel" role="complementary" aria-label="Testing and Model Management">
+                <h2>Test Predictions</h2>
+                
+                <div id="prediction-inputs" class="prediction-input">
+                    <input type="number" placeholder="Feature 1" id="pred-input-1" step="0.01" aria-label="Prediction input feature 1">
+                    <input type="number" placeholder="Feature 2" id="pred-input-2" step="0.01" aria-label="Prediction input feature 2">
+                </div>
+                
+                <button onclick="makePrediction()" id="predict-btn" disabled aria-label="Make prediction">
+                    Predict
+                </button>
+                
+                <div class="prediction-result" id="prediction-result" aria-live="polite">
+                    <span id="prediction-value">-</span>
+                </div>
+                
+                <h2 style="margin-top: 2rem;">Model Management</h2>
+                
+                <div class="form-group">
+                    <label for="model-name">Model Name</label>
+                    <input type="text" id="model-name" placeholder="my_model" aria-label="Name for saving the model">
+                </div>
+                
+                <div class="button-group">
+                    <button onclick="saveModel()" id="save-model-btn" disabled aria-label="Save current model">
+                        Save Model
+                    </button>
+                    <button onclick="document.getElementById('load-model-input').click()" aria-label="Load saved model">
+                        Load Model
+                    </button>
+                    <input type="file" id="load-model-input" accept=".json" style="display: none;" onchange="loadModel(event)">
+                </div>
+                
+                <h2 style="margin-top: 2rem;">Model Info</h2>
+                <div id="model-info" style="font-size: 14px; color: #666;">
+                    <p>Status: <span id="model-status">Not trained</span></p>
+                    <p>Total Parameters: <span id="total-params">0</span></p>
+                    <p>Training Time: <span id="training-time">-</span></p>
+                    <p>Final Loss: <span id="final-loss">-</span></p>
+                    <p>Final Accuracy: <span id="final-accuracy">-</span></p>
+                </div>
+            </aside>
+        </div>
+    </main>
+
+    <!-- Custom Scripts -->
+    <script src="js/network.js"></script>
+    <script src="js/visualization.js"></script>
+    <script src="js/training.js"></script>
+    <script>
+        // Initialize Socket.io connection
+        const socket = io();
+        
+        // Layer management
+        let hiddenLayers = [];
+        
+        function addLayer() {
+            const layerId = `hidden-layer-${hiddenLayers.length + 1}`;
+            const layerHtml = `
+                <div class="layer-config" id="${layerId}">
+                    <div class="form-group">
+                        <label for="${layerId}-neurons">Hidden Layer ${hiddenLayers.length + 1} Neurons</label>
+                        <input type="number" id="${layerId}-neurons" min="1" max="100" value="4">
+                        <button onclick="removeLayer('${layerId}')" style="margin-top: 0.5rem; background-color: #e74c3c;">
+                            Remove Layer
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            hiddenLayers.push(layerId);
+            document.getElementById('layers-container').insertAdjacentHTML('beforeend', layerHtml);
+        }
+        
+        function removeLayer(layerId) {
+            document.getElementById(layerId).remove();
+            hiddenLayers = hiddenLayers.filter(id => id !== layerId);
+        }
+        
+        // Dataset selection handler
+        document.getElementById('dataset-select').addEventListener('change', function(e) {
+            const uploadContainer = document.getElementById('upload-container');
+            if (e.target.value === 'custom') {
+                uploadContainer.style.display = 'block';
+            } else {
+                uploadContainer.style.display = 'none';
+            }
+        });
+        
+        // Training control functions
+        function startTraining() {
+            document.getElementById('train-btn').disabled = true;
+            document.getElementById('stop-btn').disabled = false;
+            document.getElementById('predict-btn').disabled = true;
+            document.getElementById('save-model-btn').disabled = true;
+            document.getElementById('training-loader').style.display = 'block';
+            
+            // Collect network configuration
+            const config = {
+                layers: collectLayerConfig(),
+                activation: document.getElementById('activation-function').value,
+                dataset: document.getElementById('dataset-select').value,
+                epochs: parseInt(document.getElementById('epochs').value),
+                learningRate: parseFloat(document.getElementById('learning-rate').value),
+                batchSize: parseInt(document.getElementById('batch-size').value)
+            };
+            
+            // Send to server via socket
+            socket.emit('start-training', config);
+        }
+        
+        function stopTraining() {
+            socket.emit('stop-training');
+            document.getElementById('train-btn').disabled = false;
+            document.getElementById('stop-btn').disabled = true;
+            document.getElementById('training-loader').style.display = 'none';
+        }
+        
+        function collectLayerConfig() {
+            const layers = [];
+            
+            // Input layer
+            layers.push({
+                type: 'input',
+                neurons: parseInt(document.getElementById('input-neurons').value)
+            });
+            
+            // Hidden layers
+            hiddenLayers.forEach(layerId => {
+                const neurons = document.getElementById(`${layerId}-neurons`);
+                if (neurons) {
+                    layers.push({
+                        type: 'hidden',
+                        neurons: parseInt(neurons.value)
+                    });
+                }
+            });
+            
+            // Output layer
+            layers.push({
+                type: 'output',
+                neurons: parseInt(document.getElementById('output-neurons').value)
+            });
+            
+            return layers;
+        }
+        
+        // Prediction functions
+        function makePrediction() {
+            const inputs = [];
+            const inputCount = parseInt(document.getElementById('input-neurons').value);
+            
+            for (let i = 1; i <= inputCount; i++) {
+                const value = parseFloat(document.getElementById(`pred-input-${i}`).value);
+                if (isNaN(value)) {
+                    showError('Please enter valid numeric values for all inputs');
+                    return;
+                }
+                inputs.push(value);
+            }
+            
+            socket.emit('predict', { inputs });
+        }
+        
+        // Model management functions
+        function saveModel() {
+            const modelName = document.getElementById('model-name').value || 'neural_network_model';
+            socket.emit('save-model', { name: modelName });
+        }
+        
+        function loadModel(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const modelData = JSON.parse(e.target.result);
+                        socket.emit('load-model', modelData);
+                    } catch (err) {
+                        showError('Invalid model file format');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+        
+        // Socket event handlers
+        socket.on('training-progress', (data) => {
+            const progress = (data.epoch / data.totalEpochs) * 100;
+            document.getElementById('training-progress').style.width = `${progress}%`;
+            
+            // Update charts
+            if (window.updateCharts) {
+                window.updateCharts(data);
+            }
+        });
+        
+        socket.on('training-complete', (data) => {
+            document.getElementById('train-btn').disabled = false;
+            document.getElementById('stop-btn').disabled = true;
+            document.getElementById('predict-btn').disabled = false;
+            document.getElementById('save-model-btn').disabled = false;
+            document.getElementById('training-loader').style.display = 'none';
+            
+            // Update model info
+            document.getElementById('model-status').textContent = 'Trained';
+            document.getElementById('training-time').textContent = `${data.trainingTime}s`;
+            document.getElementById('final-loss').textContent = data.finalLoss.toFixed(4);
+            document.getElementById('final-accuracy').textContent = `${(data.finalAccuracy * 100).toFixed(2)}%`;
+            
+            showSuccess('Training completed successfully!');
+        });
+        
+        socket.on('prediction-result', (data) => {
+            document.getElementById('prediction-value').textContent = data.prediction.toFixed(4);
+        });
+        
+        socket.on('model-saved', (data) => {
+            // Create download link
+            const blob = new Blob([JSON.stringify(data.model)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${data.name}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showSuccess('Model saved successfully!');
+        });
+        
+        socket.on('model-loaded', (data) => {
+            // Update UI with loaded model configuration
+            updateUIFromModel(data.config);
+            showSuccess('Model loaded successfully!');
+        });
+        
+        socket.on('error', (data) => {
+            showError(data.message);
+        });
+        
+        // Helper functions
+        function showError(message) {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.textContent = message;
+            errorContainer.style.display = 'block';
+            setTimeout(() => {
+                errorContainer.style.display = 'none';
+            }, 5000);
+        }
+        
+        function showSuccess(message) {
+            const successContainer = document.getElementById('success-container');
+            successContainer.textContent = message;
+            successContainer.style.display = 'block';
+            setTimeout(() => {
+                successContainer.style.display = 'none';
+            }, 5000);
+        }
+        
+        function updateUIFromModel(config) {
+            // Update layer configuration in UI based on loaded model
+            // This would be implemented based on the model structure
+            console.log('Model configuration loaded:', config);
+        }
+        
+        // Initialize prediction inputs based on input neurons
+        document.getElementById('input-neurons').addEventListener('change', function(e) {
+            const count = parseInt(e.target.value);
+            const container = document.getElementById('prediction-inputs');
+            container.innerHTML = '';
+            
+            for (let i = 1; i <= count; i++) {
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.placeholder = `Feature ${i}`;
+                input.id = `pred-input-${i}`;
+                input.step = '0.01';
+                input.setAttribute('aria-label', `Prediction input feature ${i}`);
+                container.appendChild(input);
+            }
+        });
+        
+        // Initialize charts on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            // Initialize with default 2 inputs
+            document.getElementById('input-neurons').dispatchEvent(new Event('change'));
+        });
+    </script>
+</body>
+</html>

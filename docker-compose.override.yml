@@ -1,0 +1,33 @@
+version: '3.8'
+
+# This file provides development-specific overrides
+# It's automatically loaded by docker-compose alongside docker-compose.yml
+
+services:
+  app:
+    build:
+      target: development
+    volumes:
+      - .:/app:cached
+      - /app/node_modules
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./logs:/app/logs
+    environment:
+      - NODE_ENV=development
+      - DEBUG=*
+      - CHOKIDAR_USEPOLLING=true
+    command: ["npm", "run", "dev"]
+    
+  # Add a development database browser
+  adminer:
+    image: adminer:latest
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    networks:
+      - ml-network
+    environment:
+      - ADMINER_DEFAULT_SERVER=db
+      - ADMINER_DESIGN=bootstrap
