@@ -17,7 +17,9 @@ jobs:
         username: root
         key: ${{ secrets.SSH_KEY }}
         script: |
-          cd docker-codespace-app || git clone https://github.com/${{ github.repository }}.git docker-codespace-app
+          if [ ! -d "docker-codespace-app" ]; then
+            git clone https://github.com/${{ github.repository }}.git docker-codespace-app
+          fi
           cd docker-codespace-app
           git pull origin main
           docker-compose -f docker-compose.prod.yml down
