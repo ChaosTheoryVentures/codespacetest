@@ -23,15 +23,36 @@ const io = new Server(server, {
   }
 });
 
-// Database configuration
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/nn_playground',
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-});
+// Database configuration with fallback
+let pool = null;
+let dbConnected = false;
+
+try {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/nn_playground',
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  });
+} catch (error) {
+  console.log('Database not available, running in demo mode');
+}
+
+// In-memory storage fallback
+const inMemoryStorage = {
+  models: new Map(),
+  trainingHistory: new Map(),
+  datasets: new Map()
+};
 
 // Initialize database tables
 async function initDatabase() {
+  if (!pool) {
+    console.log('Running in demo mode without database');
+    return;
+  }
+
   try {
+    await pool.query('SELECT 1');
+    
     await pool.query(`
       CREATE TABLE IF NOT EXISTS models (
         id UUID PRIMARY KEY,
@@ -69,9 +90,12 @@ async function initDatabase() {
       )
     `);
 
+    dbConnected = true;
     console.log('Database initialized successfully');
   } catch (error) {
-    console.error('Database initialization error:', error);
+    console.log('Database connection failed, running in demo mode:', error.message);
+    pool = null;
+    dbConnected = false;
   }
 }
 

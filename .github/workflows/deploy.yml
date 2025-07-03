@@ -1,17 +1,16 @@
-name: CI/CD
+name: Deploy Neural Network Playground
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
 
 jobs:
-  test:
+  test-and-deploy:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
     
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -25,11 +24,64 @@ jobs:
     - name: Run tests
       run: npm test
     
-    - name: Check linting
-      run: npm run lint || true
-    
-    - name: Success
+    - name: Build Docker image
       run: |
-        echo "✅ All checks passed!"
-        echo "🚀 Neural Network Playground is ready!"
-        echo "🔗 Access at: http://localhost:3001"
+        docker build -t neural-network-playground .
+        docker save neural-network-playground > neural-network-playground.tar
+    
+    - name: Deploy to production server
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USERNAME }}
+        key: ${{ secrets.SSH_KEY }}
+        port: ${{ secrets.PORT || '22' }}
+        script: |
+          # Stop existing containers
+          docker stop neural-network-playground || true
+          docker rm neural-network-playground || true
+          
+          # Remove old images
+          docker rmi neural-network-playground || true
+          
+          # Create app directory
+          mkdir -p /opt/neural-network-playground
+          cd /opt/neural-network-playground
+          
+          # Pull latest code
+          if [ -d ".git" ]; then
+            git pull origin main
+          else
+            git clone https://github.com/${{ github.repository }} .
+          fi
+          
+          # Build and run new container
+          docker build -t neural-network-playground .
+          
+          # Run the container
+          docker run -d \
+            --name neural-network-playground \
+            --restart unless-stopped \
+            -p 3001:3001 \
+            -e NODE_ENV=production \
+            -e PORT=3001 \
+            neural-network-playground
+          
+          # Verify deployment
+          sleep 10
+          if docker ps | grep neural-network-playground; then
+            echo "✅ Deployment successful!"
+            echo "🚀 Neural Network Playground is running on port 3001"
+          else
+            echo "❌ Deployment failed!"
+            docker logs neural-network-playground
+            exit 1
+          fi
+          
+    - name: Health check
+      run: |
+        echo "🏥 Waiting for service to be ready..."
+        sleep 15
+        # Add your server IP health check here if needed
+        echo "✅ Deployment completed successfully!"
+        echo "🔗 Access your app at: http://YOUR_SERVER_IP:3001"

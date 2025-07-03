@@ -1,71 +1,37 @@
-# Base stage with build tools
-FROM node:18-alpine AS base
+FROM node:18-alpine
 
-# Install build tools required for TensorFlow.js native bindings
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    libc6-compat \
-    && ln -sf python3 /usr/bin/python
+# Install build tools for TensorFlow.js
+RUN apk add --no-cache python3 make g++ libc6-compat
 
-# Create a non-root user for security
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
-
-# Set working directory
+# Create app directory
 WORKDIR /app
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodeuser -u 1001
 
 # Copy package files
 COPY package*.json ./
 
-# Development stage
-FROM base AS development
-
-# Install all dependencies including dev dependencies
-RUN npm ci && npm cache clean --force
-
-# Copy application code
-COPY . .
-
-# Change ownership to non-root user
-RUN chown -R nextjs:nodejs /app
-
-# Switch to non-root user
-USER nextjs
-
-# Expose port
-EXPOSE 3000
-
-# Add health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD node healthcheck.js || exit 1
-
-# Start application in development mode
-CMD ["npm", "run", "dev"]
-
-# Production stage
-FROM base AS production
-
-# Install only production dependencies
+# Install dependencies
 RUN npm ci --only=production && npm cache clean --force
 
 # Copy application code
 COPY . .
 
-# Create necessary directories with proper permissions
-RUN mkdir -p /app/tmp /app/logs && \
-    chown -R nextjs:nodejs /app
+# Create uploads directory
+RUN mkdir -p uploads public/uploads && \
+    chown -R nodeuser:nodejs /app
 
 # Switch to non-root user
-USER nextjs
+USER nodeuser
 
 # Expose port
-EXPOSE 3000
+EXPOSE 3001
 
-# Add health check
+# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD node healthcheck.js || exit 1
+  CMD node healthcheck.js
 
-# Start application in production mode
+# Start application
 CMD ["npm", "start"]
