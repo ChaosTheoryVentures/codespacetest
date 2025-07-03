@@ -1,91 +1,25 @@
-name: Deploy Neural Network Playground
+name: Deploy to Production
 
 on:
   push:
     branches: [ main ]
 
 jobs:
-  test-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - name: Deploy to server
+      uses: appleboy/ssh-action@v1.0.3
       with:
-        node-version: '18'
-        cache: 'npm'
-    
-    - name: Install dependencies
-      run: npm ci
-    
-    - name: Run tests
-      run: npm test
-    
-    - name: Test Docker build locally
-      run: |
-        docker build -t neural-network-playground-test .
-        echo "✅ Docker build successful"
-    
-    - name: Deploy to production server
-      uses: appleboy/ssh-action@v1.1.0
-      with:
-        host: ${{ secrets.HOST }}
-        username: ${{ secrets.USERNAME }}
+        host: ${{ secrets.PRODUCTION_HOST }}
+        username: root
         key: ${{ secrets.SSH_KEY }}
-        port: ${{ secrets.PORT || '22' }}
         script: |
-          # Create app directory
-          mkdir -p /opt/neural-network-playground
-          cd /opt/neural-network-playground
-          
-          # Stop existing container
-          docker stop neural-network-playground 2>/dev/null || true
-          docker rm neural-network-playground 2>/dev/null || true
-          
-          # Pull latest code
-          if [ -d ".git" ]; then
-            git pull origin main
-          else
-            git clone https://github.com/${{ github.repository }} .
+          cd /root
+          if [ ! -d "codespacetest" ]; then
+            git clone https://github.com/ChaosTheoryVentures/codespacetest.git
           fi
-          
-          # Build new image
-          docker build -t neural-network-playground .
-          
-          # Run the container
-          docker run -d \
-            --name neural-network-playground \
-            --restart unless-stopped \
-            -p 3001:3001 \
-            -e NODE_ENV=production \
-            -e PORT=3001 \
-            neural-network-playground
-          
-          # Wait for container to start
-          sleep 15
-          
-          # Verify deployment
-          if docker ps | grep neural-network-playground; then
-            echo "✅ Deployment successful!"
-            echo "🚀 Neural Network Playground is running on port 3001"
-            docker logs --tail 10 neural-network-playground
-          else
-            echo "❌ Deployment failed!"
-            echo "Container logs:"
-            docker logs neural-network-playground 2>/dev/null || echo "No logs available"
-            exit 1
-          fi
-          
-    - name: Deployment complete
-      run: |
-        echo "🎉 Deployment completed successfully!"
-        echo "🔗 Access your Neural Network Playground at: http://YOUR_SERVER_IP:3001"
-        echo ""
-        echo "Features available:"
-        echo "  - Interactive neural network visualization"
-        echo "  - Real-time training with TensorFlow.js"
-        echo "  - Dataset upload and management"
-        echo "  - Model save/load functionality"
+          cd codespacetest
+          git pull origin main
+          docker-compose down || true
+          docker-compose up -d --build
