@@ -1,14 +1,9 @@
-FROM node:18-alpine
+FROM node:18
 
-# Install build tools for TensorFlow.js
-RUN apk add --no-cache python3 make g++ libc6-compat
-
-# Create app directory
 WORKDIR /app
 
 # Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodeuser -u 1001
+RUN groupadd -r nodejs && useradd -r -g nodejs nodeuser
 
 # Copy package files
 COPY package*.json ./
@@ -28,10 +23,6 @@ USER nodeuser
 
 # Expose port
 EXPOSE 3001
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node healthcheck.js
 
 # Start application
 CMD ["npm", "start"]
